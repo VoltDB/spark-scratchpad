@@ -107,7 +107,7 @@ public class SparkJob {
 
         SQLContext sqlContext = new SQLContext(sc);
         DataFrame df = sqlContext.createDataFrame(rowRDD, schema);
-        //df.cache();
+
 
         JavaRDD<Vector> vectorData = df.javaRDD().map(new Function<Row, Vector>() {
 			private static final long serialVersionUID = -6139643024173378428L;
@@ -132,45 +132,48 @@ public class SparkJob {
 
             	return Vectors.dense(tuple.getInt(0), tuple.getInt(1), tuple.getInt(6), tuple.getInt(7));
             }
-        }).cache();
+        });
 
-        System.out.printf("vectorData has %d rows\n", vectorData.count());
+        while (true) {
 
-        if (vectorData.count() == 0) {
-        	return;
+	        System.out.printf("vectorData has %d rows\n", vectorData.count());
+
+	        if (vectorData.count() == 0) {
+	        	return;
+	        }
+
+	        KMeansModel clusters = KMeans.train(vectorData.rdd(), 20, 20);
+
+	        Vector[] centers = clusters.clusterCenters();
+
+	        VoltTable centersTable = new VoltTable(
+	        		new VoltTable.ColumnInfo("id", VoltType.INTEGER),
+	        		new VoltTable.ColumnInfo("src", VoltType.INTEGER),
+	        		new VoltTable.ColumnInfo("dest", VoltType.INTEGER),
+	        		new VoltTable.ColumnInfo("referral", VoltType.INTEGER),
+	        		new VoltTable.ColumnInfo("agent", VoltType.INTEGER));
+	        int i = 0;
+	        for (Vector v : centers) {
+	        	double[] doubleV = v.toArray();
+	        	centersTable.addRow(i++,
+	        						(int) Math.round(doubleV[0]),
+	        						(int) Math.round(doubleV[1]),
+	        						(int) Math.round(doubleV[2]),
+	        						(int) Math.round(doubleV[3]));
+	        }
+	        centersTable.resetRowPosition();
+
+	        Client client = ClientFactory.createClient();
+	        client.createConnection("localhost");
+
+	        ClientResponse response = client.callProcedure("LoadNewClusters", centersTable);
+	        assert(response.getStatus() == ClientResponse.SUCCESS);
+
+	        client.close();
         }
 
-        KMeansModel clusters = KMeans.train(vectorData.rdd(), 20, 20);
-
-        Vector[] centers = clusters.clusterCenters();
-
-        VoltTable centersTable = new VoltTable(
-        		new VoltTable.ColumnInfo("id", VoltType.INTEGER),
-        		new VoltTable.ColumnInfo("src", VoltType.INTEGER),
-        		new VoltTable.ColumnInfo("dest", VoltType.INTEGER),
-        		new VoltTable.ColumnInfo("referral", VoltType.INTEGER),
-        		new VoltTable.ColumnInfo("agent", VoltType.INTEGER));
-        int i = 0;
-        for (Vector v : centers) {
-        	double[] doubleV = v.toArray();
-        	centersTable.addRow(i++,
-        						(int) Math.round(doubleV[0]),
-        						(int) Math.round(doubleV[1]),
-        						(int) Math.round(doubleV[2]),
-        						(int) Math.round(doubleV[3]));
-        }
-        centersTable.resetRowPosition();
-
-        Client client = ClientFactory.createClient();
-        client.createConnection("localhost");
-
-        ClientResponse response = client.callProcedure("LoadNewClusters", centersTable);
-        assert(response.getStatus() == ClientResponse.SUCCESS);
-
-        client.close();
-
-        sc.stop();
-        sc.close();
+        //sc.stop();
+        //sc.close();
     }
 
 }
