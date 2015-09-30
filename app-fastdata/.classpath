@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry kind="src" path="hadoop/dsa"/>
+	<classpathentry kind="src" path="procedures"/>
+	<classpathentry excluding="src/" kind="src" path="client"/>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
+	<classpathentry kind="lib" path="lib/voltdb-5.6.jar"/>
+	<classpathentry kind="output" path="bin"/>
+</classpath>
